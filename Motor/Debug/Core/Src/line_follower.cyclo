@@ -1,0 +1,2 @@
+../Core/Src/line_follower.c:16:6:LineSensors_Read	1
+../Core/Src/line_follower.c:26:6:LineFollower_Update	6

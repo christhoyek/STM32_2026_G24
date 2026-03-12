@@ -18,9 +18,14 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "spi.h"
 #include "tim.h"
+#include "usart.h"
 #include "gpio.h"
 #include "motor.h"
+#include "ultrasonic.h"
+#include "TRSensors.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -94,8 +99,16 @@ int main(void)
   MX_GPIO_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
+  MX_SPI1_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
+
   Motor_Init();
+  Ultrasonic_Init();
+  TR_Sensors_Init();
+  LineFollower_Init();
+  float distance;
+  uint16_t sensors[5];
 
 
   /* USER CODE END 2 */
@@ -107,15 +120,21 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  //LineFollower_Update();
+	 // Motor_SetSpeed(200,-200);
 
-	  // Les deux moteurs en même temps (coordonné)
-	  Motor_Left(200); //ARRIERE
-	  HAL_Delay(2000);
-	  Motor_SetSpeed(0,0);
-	  HAL_Delay(2000);
-	  Motor_Right(200); //AVANT
-	  HAL_Delay(2000);
-	  Motor_SetSpeed(0,0);
+	  LineFollower_Update();
+
+	  HAL_Delay(5);
+
+	 // distance = Ultrasonic_Read();
+	  	//if(distance < 0) distance = 0; // Si une erreur, affiche 0
+
+	  //	if(distance<=10){
+	  	//	Motor_Stop();
+	  		//HAL_Delay(2000);
+	  //	}else{
+	  //		Motor_SetSpeed(200,-200);}
 
 
 

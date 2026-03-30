@@ -22,12 +22,14 @@
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
-#include "motor.h"
-#include "ultrasonic.h"
-#include "TRSensors.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
+#include "TRSensors.h"
+#include "motor.h"
+#include "line_follower.h"
+#include "ultrasonic.h"
 
 /* USER CODE END Includes */
 
@@ -51,22 +53,28 @@
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
-
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+
 /* USER CODE BEGIN PFP */
+extern UART_HandleTypeDef huart3;
 
+int _write(int file, char *ptr, int len)
+{
+    HAL_UART_Transmit(&huart3, (uint8_t*)ptr, len, HAL_MAX_DELAY);
+    return len;
+}
 
-
-
-
-
+#define NUM_SENSORS 5
+uint16_t mis_sensores[NUM_SENSORS];
 /* USER CODE END PFP */
+
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
 /* USER CODE END 0 */
+
 
 /**
   * @brief  The application entry point.
@@ -74,21 +82,18 @@ void SystemClock_Config(void);
   */
 int main(void)
 {
-
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
   /* USER CODE BEGIN Init */
 
   /* USER CODE END Init */
 
-  /* Configure the system clock */
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
@@ -101,46 +106,71 @@ int main(void)
   MX_TIM3_Init();
   MX_SPI1_Init();
   MX_USART3_UART_Init();
+
   /* USER CODE BEGIN 2 */
+  printf("System start\r\n");
 
   Motor_Init();
   Ultrasonic_Init();
   TR_Sensors_Init();
   LineFollower_Init();
-  float distance;
-  uint16_t sensors[5];
 
-
+  printf("Init done\r\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
+    /* =========================
+       MODE 1 : TEST CAPTEURS IR
+       ========================= */
 
-    /* USER CODE BEGIN 3 */
-	  //LineFollower_Update();
-	 // Motor_SetSpeed(200,-200);
+    TR_Update_Sensors(mis_sensores);
 
-	  LineFollower_Update();
+    printf("IR: %4d %4d %4d %4d %4d\r\n",
+           mis_sensores[0],
+           mis_sensores[1],
+           mis_sensores[2],
+           mis_sensores[3],
+           mis_sensores[4]);
 
-	  HAL_Delay(5);
+    HAL_Delay(100);
 
-	 // distance = Ultrasonic_Read();
-	  	//if(distance < 0) distance = 0; // Si une erreur, affiche 0
+    /* ===============================
+       MODE 2 : SUIVEUR DE LIGNE
+       Décommente pour l’utiliser
+       =============================== */
 
-	  //	if(distance<=10){
-	  	//	Motor_Stop();
-	  		//HAL_Delay(2000);
-	  //	}else{
-	  //		Motor_SetSpeed(200,-200);}
+    /*
+    LineFollower_Update();
+    HAL_Delay(10);
+    */
 
+    /* ===============================
+       MODE 3 : TEST ULTRASON + MOTEUR
+       Décommente pour l’utiliser
+       =============================== */
 
+    /*
+    float distance = Ultrasonic_Read();
 
+    if (distance < 0)
+        distance = 0;
 
+    printf("Distance: %.2f cm\r\n", distance);
+
+    if (distance <= 10.0f)
+    {
+        Motor_Stop();
+    }
+    else
+    {
+        Motor_SetSpeed(200, -200);
+    }
+
+    HAL_Delay(100);
+    */
   }
-  /* USER CODE END 3 */
 }
 
 /**

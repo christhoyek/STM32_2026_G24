@@ -1,2 +1,2 @@
-../Core/Src/line_follower.c:16:6:LineSensors_Read	16	static
-../Core/Src/line_follower.c:26:6:LineFollower_Update	16	static
+../Core/Src/line_follower.c:32:6:LineFollower_Init	8	static
+../Core/Src/line_follower.c:41:6:LineFollower_Update	160	static

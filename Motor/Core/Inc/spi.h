@@ -31,8 +31,6 @@ extern "C" {
 /* USER CODE BEGIN Includes */
 
 /* USER CODE END Includes */
-#define TR_CS_PORT GPIOB
-#define TR_CS_PIN  GPIO_PIN_6
 
 extern SPI_HandleTypeDef hspi1;
 

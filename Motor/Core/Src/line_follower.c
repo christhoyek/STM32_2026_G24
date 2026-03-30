@@ -9,31 +9,30 @@
 #include "TRSensors.h"
 #include <stdio.h>
 #include <string.h>
+#include "motor.h"
 
 #define NUM_SENSORS 5
-#define LINE_THRESHOLD 1300  // ligne noire
+#define LINE_THRESHOLD 2400   // noir ~2368, blanc > 2400
+#define BASE_SPEED 200
+#define LOST_LINE_SPEED 0
 
 extern UART_HandleTypeDef huart3;
-
-/* Fonctions moteur déjà implémentées */
-extern void Motor_Left(uint16_t speed);
-extern void Motor_Right(uint16_t speed);
 
 /* Tableau capteurs */
 uint16_t sensorValues[NUM_SENSORS];
 
 /* Variables PID */
-int last_proportional = 0;
-long integral = 0;
-
-uint16_t position;
+static int last_proportional = 0;
+static long integral = 0;
+static uint16_t position = 2000;
 
 /**
- * Initialisation des capteurs
+ * Initialisation des capteurs et moteurs
  */
 void LineFollower_Init(void)
 {
     TR_Sensors_Init();
+    Motor_Init();
 }
 
 /**
@@ -41,82 +40,100 @@ void LineFollower_Init(void)
  */
 void LineFollower_Update(void)
 {
-    /* Lecture capteurs via SPI */
     TR_Update_Sensors(sensorValues);
 
-    /* Calcul position ligne */
     int weighted = 0;
     int sum = 0;
+    int black_detected = 0;
 
-    for(int i = 0; i < NUM_SENSORS; i++)
+    /* Détection de la ligne noire :
+       noir  -> valeur plus faible (~2368)
+       blanc -> valeur plus grande (>2400)
+    */
+    for (int i = 0; i < NUM_SENSORS; i++)
     {
-        if(sensorValues[i] > LINE_THRESHOLD) // détecte ligne noire
+        if (sensorValues[i] <= LINE_THRESHOLD)
         {
             weighted += i * 1000;
             sum += 1;
+            black_detected = 1;
         }
     }
 
-    if(sum == 0)
+    /* Calcul de position :
+       0    = extrême gauche
+       1000 = gauche
+       2000 = centre
+       3000 = droite
+       4000 = extrême droite
+    */
+    if (sum > 0)
     {
-        position = 2000;  // centre par défaut
+        position = weighted / sum;
     }
     else
     {
-        position = (weighted / sum) * 1000;
+        /* si ligne perdue, garder une direction cohérente */
+        if (last_proportional < 0)
+            position = 0;
+        else
+            position = 4000;
     }
 
-    /* PID */
-
-    int proportional = position - 2000;
+    /* PID / PD */
+    int proportional = (int)position - 2000;
     int derivative = proportional - last_proportional;
-
+    integral += proportional;
     last_proportional = proportional;
 
-    // PID réajusté pour vitesse max = 200
-    int power_difference = proportional / 10 + derivative * 8;
+    /* Réglage doux */
+    int power_difference = (proportional / 18) + (derivative * 6);
 
-    /* Limitation de la correction */
-    const int maximum = 200;   // Vitesse max PWM
+    if (power_difference > BASE_SPEED)
+        power_difference = BASE_SPEED;
+    if (power_difference < -BASE_SPEED)
+        power_difference = -BASE_SPEED;
 
-    if(power_difference > maximum)
-        power_difference = maximum;
+    int left_speed;
+    int right_speed;
 
-    if(power_difference < -maximum)
-        power_difference = -maximum;
-
-    /* Appliquer vitesse moteurs selon la correction */
-
-    if(power_difference < 0)
+    if (power_difference < 0)
     {
-        Motor_Left(maximum + power_difference);   // ralentir moteur gauche
-        Motor_Right(maximum);                     // moteur droit constant
+        left_speed = BASE_SPEED + power_difference;
+        right_speed = BASE_SPEED;
     }
     else
     {
-        Motor_Left(maximum);                      // moteur gauche constant
-        Motor_Right(maximum - power_difference);  // ralentir moteur droit
+        left_speed = BASE_SPEED;
+        right_speed = BASE_SPEED - power_difference;
     }
 
-    /* Ligne perdue : arrêter robot */
-    if(sensorValues[1] < LINE_THRESHOLD &&
-       sensorValues[2] < LINE_THRESHOLD &&
-       sensorValues[3] < LINE_THRESHOLD)
+    if (left_speed < 0) left_speed = 0;
+    if (right_speed < 0) right_speed = 0;
+
+    if (!black_detected)
     {
-        Motor_Left(0);
-        Motor_Right(0);
+        Motor_Left(LOST_LINE_SPEED);
+        Motor_Right(LOST_LINE_SPEED);
+    }
+    else
+    {
+        Motor_Left(left_speed);
+        Motor_Right(right_speed);
     }
 
     /* Debug UART */
-    char msg[100];
-
-    sprintf(msg,"%d %d %d %d %d | pos=%d\r\n",
+    char msg[128];
+    sprintf(msg,
+            "IR: %4d %4d %4d %4d %4d | pos=%4d | L=%3d R=%3d\r\n",
             sensorValues[0],
             sensorValues[1],
             sensorValues[2],
             sensorValues[3],
             sensorValues[4],
-            position);
+            position,
+            left_speed,
+            right_speed);
 
-    HAL_UART_Transmit(&huart3,(uint8_t*)msg,strlen(msg),100);
+    HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), 100);
 }
